@@ -1,30 +1,33 @@
 #!/bin/bash
 
-set -e
+#set -eo
 
 if [ -z "$1" ]; then
     echo "Usage: $0 <path-to-factory-image.zip>"
     exit 1
 fi
 
-tmpdir=$(mktemp -d)
+#tmpdir=$(mktemp -d)
 mount=$(mktemp -d)
 
-cleanup() {
-    set +e
-    sudo umount "$mount"
+#cleanup() {
+#    set +e
+#    sudo umount "$mount"
 
-    sudo dmsetup remove /dev/mapper/dynpart-*
-    sudo losetup -d "$loopdev"
+#    sudo dmsetup remove /dev/mapper/dynpart-*
+#    sudo losetup -d "$loopdev"
 
-    sudo rmdir "$mount"
-    sudo rm -r "$tmpdir"
-}
-trap cleanup EXIT
+#    sudo rmdir "$mount"
+#    sudo rm -r "$tmpdir"
+#}
+#trap cleanup EXIT
 
-unzip -d "$tmpdir" "$1" images/BTFM.bin images/dspso.bin images/NON-HLOS.bin images/super.img
+7z x "$1"
+tmpdir=FP5-UT2M-factory
+#unzip -d "$tmpdir" "$1" images/BTFM.bin images/dspso.bin images/NON-HLOS.bin images/super.img
+#echo "tmpdir: $tmpdir"
 
-mkdir hexagonfs hexagonfs/dsp hexagonfs/sensors
+mkdir -p hexagonfs/dsp hexagonfs/sensors
 
 ### NON-HLOS.bin ###
 sudo mount -o ro "$tmpdir"/images/NON-HLOS.bin "$mount"
@@ -51,9 +54,10 @@ simg2img "$tmpdir"/images/super.img "$tmpdir"/super.raw.img
 rm "$tmpdir"/images/super.img
 
 loopdev=$(sudo losetup --read-only --find --show "$tmpdir"/super.raw.img)
-sudo dmsetup create --concise "$(sudo parse-android-dynparts "$loopdev")"
+sudo parse-android-dynparts "$loopdev" | sudo bash
 
-sudo mount -o ro /dev/mapper/dynpart-vendor_a "$mount"
+sudo mount -o ro /dev/mapper/vendor_a "$mount"
+cp -R "$mount"/* ./data
 cp "$mount"/firmware/a660_zap.b* .
 cp "$mount"/firmware/a660_zap.mdt .
 cp "$mount"/firmware/yupik_ipa_fws.* .
@@ -70,3 +74,6 @@ cp -r "$mount"/etc/sensors/sns_reg_config hexagonfs/sensors/sns_reg.conf
 # for i in hw_platform platform_subtype platform_subtype_id platform_version revision soc_id; do adb shell cat /sys/devices/soc0/$i > hexagonfs/socinfo/$i; done
 
 # cleanup happens on exit with the signal handler at the top
+
+sudo dmsetup remove /dev/mapper/*_a
+sudo losetup -d "$loopdev"
